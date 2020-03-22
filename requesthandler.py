@@ -2,7 +2,6 @@
 import logging
 import struct
 import psutil
-from time import time
 from enum import IntEnum
 from ipaddress import IPv4Address, IPv6Address
 from select import select
