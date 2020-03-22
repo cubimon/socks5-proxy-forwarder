@@ -5,7 +5,7 @@ import logging
 from ipaddress import IPv4Address, IPv6Address
 from socketserver import ThreadingMixIn, TCPServer
 from socks import SOCKS4, SOCKS5, HTTP
-from request_handler import RequestHandler
+from requesthandler import RequestHandler
 
 logging.basicConfig(level=logging.DEBUG)
 

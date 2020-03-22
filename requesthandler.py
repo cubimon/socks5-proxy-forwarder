@@ -1,6 +1,8 @@
 #!/bin/python3
 import logging
 import struct
+import psutil
+from time import time
 from enum import IntEnum
 from ipaddress import IPv4Address, IPv6Address
 from select import select
@@ -8,8 +10,15 @@ from socket import AF_INET, AF_INET6, SOCK_STREAM
 from socket import inet_aton
 from socketserver import StreamRequestHandler
 from socks import socksocket
+from processbandwidthmonitor import ProcessBandwidthMonitor
 
 SOCKS_VERSION = 5
+
+def get_process_name(address, port):
+    for connection in psutil.net_connections():
+        addr = connection.laddr
+        if addr.ip == address and addr.port == port:
+            return psutil.Process(connection.pid).name()
 
 class Method(IntEnum):
     NO_AUTH = 0
@@ -25,23 +34,20 @@ class AddressType(IntEnum):
 class Command(IntEnum):
     CONNECT = 1
 
-
 class RequestHandler(StreamRequestHandler):
     username = None
     password = None
-    proxy = lambda self, address, port: None
     requires_authentication = False
-
-    '''
-    def __init__(self):
-        super().__init__()
-        self.requires_authentication = False
-        if self.username is not None and self.password is not None:
-            self.requires_authentication = True
-    '''
+    proxy = lambda self, address, port: None
+    process_bandwidth_monitor = ProcessBandwidthMonitor()
+    chunk_size = 4096
 
     def handle(self):
-        logging.info('accepting connection from %s:%s' % self.client_address)
+        process_name = get_process_name(*self.client_address)
+        if process_name is None:
+            logging.info('accepting connection from %s:%s' % self.client_address)
+        else:
+            logging.info('accepting connection from %s' % process_name)
 
         # get version/authentication method count
         version, nmethods = struct.unpack('!BB', self.connection.recv(2))
@@ -122,7 +128,7 @@ class RequestHandler(StreamRequestHandler):
         # establish data exchange
         if reply[1] == 0 and cmd == 1:
             logging.info('exchanging data now')
-            self.exchange_loop(self.connection, remote)
+            self.exchange_loop(self.connection, remote, process_name)
 
         self.server.close_request(self.request)
 
@@ -158,17 +164,26 @@ class RequestHandler(StreamRequestHandler):
         return struct.pack('!BBBBIH', SOCKS_VERSION, error_number, 0,
                            address_type, 0, 0)
 
-    def exchange_loop(self, client, remote):
+    def exchange_loop(self, client, remote, process_name):
         while True:
             # wait until client or remote is available for read
             r, w, e = select([client, remote], [], [])
 
             if client in r:
-                data = client.recv(4096)
-                if remote.send(data) <= 0:
-                    break
+                if not self.process_bandwidth_monitor.upload_is_full(process_name):
+                    data = client.recv(self.chunk_size)
+                    if process_name is not None:
+                        self.process_bandwidth_monitor.upload_event(
+                                process_name, len(data))
+                    if remote.send(data) <= 0:
+                        break
 
             if remote in r:
-                data = remote.recv(4096)
-                if client.send(data) <= 0:
-                    break
+                if not self.process_bandwidth_monitor.download_is_full(process_name):
+                    data = remote.recv(self.chunk_size)
+                    if process_name is not None:
+                        self.process_bandwidth_monitor.download_event(
+                                process_name, len(data))
+                    if client.send(data) <= 0:
+                        break
+
