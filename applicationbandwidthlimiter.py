@@ -16,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('--address', help='address to bind to',
                         default='127.0.0.1')
     parser.add_argument('--port', help='port to bind to',
-                        default=1081)
+                        default=1080)
     args = parser.parse_args()
     # limit 5 mbit download/2 mbit upload
     # division by 8 to convert bytes to bits
@@ -24,6 +24,7 @@ if __name__ == '__main__':
     RequestHandler.process_bandwidth_monitor.limitations = {
         'curl': [50, 50],
         'chrome': [5 * 1000 * 1000 / 8, 2 * 1000 * 1000 / 8],
+        'chromium': [5 * 1000 * 1000 / 8, 2 * 1000 * 1000 / 8],
         'firefox': [5 * 1000 * 1000 / 8, 2 * 1000 * 1000 / 8]
     }
     with ThreadingTCPServer((args.address, int(args.port)), RequestHandler) \
