@@ -6,14 +6,45 @@ from enum import IntEnum
 from ipaddress import IPv4Address, IPv6Address
 from select import select
 from socketserver import StreamRequestHandler
+from socket import SOL_SOCKET, SO_BINDTODEVICE
 from socks import socksocket
+from netifaces import ifaddresses, AF_INET
 from bandwidthmonitor import BandwidthMonitor
 
 
+# Socks5
 SOCKS_VERSION = 5
 
 
+def ip_address_from_nic(nic: str):
+    """get ip address from nic name
+    
+    Arguments:
+        nic {str} -- nic name, something like 
+        'eth0', 'wlan0' or 'enp0s31f6' from the
+        `ip addr` command
+    
+    Returns:
+        str -- address/nic or None if not found
+    """
+    addresses = ifaddresses(nic)
+    if AF_INET not in addresses:
+        return None
+    if len(addresses[AF_INET]) == 0:
+        return None
+    return addresses[AF_INET][0]['addr']
+
 def get_process_name(address, port):
+    """get process name from connection that was made
+    by a process of this host
+    
+    Arguments:
+        address {str} -- localhost/127.0.0.1
+        port {int} -- port of connection
+    
+    Returns:
+        str -- process name or None
+    """
     for connection in net_connections():
         addr = connection.laddr
         if addr.ip == address and addr.port == port:
@@ -40,6 +71,7 @@ class RequestHandler(StreamRequestHandler):
     password = None
     requires_authentication = False
     proxy = lambda self, address, port: None
+    router = lambda self, address, port: None
     process_bandwidth_monitor = BandwidthMonitor()
     domain_bandwidth_monitor = BandwidthMonitor()
     chunk_size = 4096
@@ -105,6 +137,9 @@ class RequestHandler(StreamRequestHandler):
         try:
             if cmd == Command.CONNECT:
                 remote = socksocket()
+                nic = self.router(address, port)
+                if nic is not None:
+                    remote.bind((ip_address_from_nic(nic), 0))
                 proxy = self.proxy(address, port)
                 if proxy is not None:
                     remote.set_proxy(*proxy)

@@ -4,7 +4,13 @@ import logging
 from socketserver import ThreadingMixIn, TCPServer
 from requesthandler import RequestHandler
 
+
 logging.basicConfig(level=logging.DEBUG)
+
+
+def router(self, address, port):
+    # static route
+    return 'enp0s31f6'
 
 
 class ThreadingTCPServer(ThreadingMixIn, TCPServer):
@@ -27,6 +33,7 @@ if __name__ == '__main__':
         'chromium': [5 * 1000 * 1000 / 8, 2 * 1000 * 1000 / 8],
         'firefox': [5 * 1000 * 1000 / 8, 2 * 1000 * 1000 / 8]
     }
+    RequestHandler.router = router
     with ThreadingTCPServer((args.address, int(args.port)), RequestHandler) \
             as server:
         server.serve_forever()

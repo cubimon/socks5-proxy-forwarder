@@ -4,12 +4,14 @@ import json
 import logging
 from ipaddress import IPv4Address, IPv6Address
 from socketserver import ThreadingMixIn, TCPServer
-from socks import SOCKS4, SOCKS5, HTTP
+from socks import SOCKS5
 from requesthandler import RequestHandler
+
 
 logging.basicConfig(level=logging.DEBUG)
 
 credentials = json.loads(open('credentials.json', 'r').read())
+
 
 def proxy(self, address, port):
     logging.info('resolving address %s', address)
@@ -45,3 +47,4 @@ if __name__ == '__main__':
     with ThreadingTCPServer((args.address, int(args.port)), RequestHandler) \
             as server:
         server.serve_forever()
+
